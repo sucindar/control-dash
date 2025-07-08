@@ -16,10 +16,11 @@ FRONTEND_SERVICE_NAME="gcp-dashboard-frontend"
 
 # --- Setup ---
 echo "--- Enabling required Google Cloud services ---"
-gcloud services enable cloudbuild.googleapis.com run.googleapis.com artifactregistry.googleapis.com
+gcloud services enable cloudbuild.googleapis.com run.googleapis.com artifactregistry.googleapis.com --project="${PROJECT_ID}"
 
 echo "--- Creating Artifact Registry repository (if it doesn't exist) ---"
 gcloud artifacts repositories create "${REPO_NAME}" \
+    --project="${PROJECT_ID}" \
     --repository-format=docker \
     --location="${REGION}" \
     --description="Docker repository for GCP Security Dashboard" || echo "Repository '${REPO_NAME}' already exists."
@@ -27,7 +28,7 @@ gcloud artifacts repositories create "${REPO_NAME}" \
 # --- Backend Deployment ---
 echo "--- Building and pushing backend image using Cloud Build ---"
 BACKEND_IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${BACKEND_SERVICE_NAME}:latest"
-gcloud builds submit ./backend --tag "${BACKEND_IMAGE_URI}"
+gcloud builds submit ./backend --tag "${BACKEND_IMAGE_URI}" --project="${PROJECT_ID}"
 
 echo "--- Deploying backend service to Cloud Run ---"
 gcloud run deploy "${BACKEND_SERVICE_NAME}" \
@@ -38,13 +39,13 @@ gcloud run deploy "${BACKEND_SERVICE_NAME}" \
     --project="${PROJECT_ID}"
 
 # Get the URL of the deployed backend service
-BACKEND_URL=$(gcloud run services describe "${BACKEND_SERVICE_NAME}" --platform=managed --region="${REGION}" --format='value(status.url)')
+BACKEND_URL=$(gcloud run services describe "${BACKEND_SERVICE_NAME}" --platform=managed --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)')
 echo "Backend deployed to: ${BACKEND_URL}"
 
 # --- Frontend Deployment ---
 echo "--- Building and pushing frontend image using Cloud Build ---"
 FRONTEND_IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${FRONTEND_SERVICE_NAME}:latest"
-gcloud builds submit ./frontend --tag "${FRONTEND_IMAGE_URI}"
+gcloud builds submit ./frontend --tag "${FRONTEND_IMAGE_URI}" --project="${PROJECT_ID}"
 
 echo "--- Deploying frontend service to Cloud Run ---"
 gcloud run deploy "${FRONTEND_SERVICE_NAME}" \
@@ -55,7 +56,7 @@ gcloud run deploy "${FRONTEND_SERVICE_NAME}" \
     --project="${PROJECT_ID}" \
     --set-env-vars="NEXT_PUBLIC_BACKEND_URL=${BACKEND_URL}"
 
-FRONTEND_URL=$(gcloud run services describe "${FRONTEND_SERVICE_NAME}" --platform=managed --region="${REGION}" --format='value(status.url)')
+FRONTEND_URL=$(gcloud run services describe "${FRONTEND_SERVICE_NAME}" --platform=managed --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)')
 
 echo "---"
 echo "Deployment complete!"
