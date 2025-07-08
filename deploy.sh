@@ -5,7 +5,7 @@ set -e
 
 # --- Configuration ---
 # Google Cloud Project ID
-PROJECT_ID="$(gcloud config get-value project)"
+PROJECT_ID="evol-dev-456410"
 # Google Cloud Region
 REGION="us-central1"
 # Name for your Artifact Registry repository
