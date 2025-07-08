@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from org_policies import get_all_effective_policies
 from vpc_sc import get_vpc_sc_status
+from datastore_client import save_dashboard_data, get_dashboard_data
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,32 +25,50 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Mock Endpoints ---
-@app.get("/api/projects")
-def get_projects():
-    return []
 
-@app.get("/api/project-details/{project_id}")
-def get_project_details(project_id: str):
-    return {}
 
-@app.get("/api/services/{project_id}")
-def get_services(project_id: str):
-    return []
+@app.post("/api/refresh/{project_id}")
+def refresh_project_data(project_id: str):
+    """Fetches all security data from GCP APIs and caches it in Datastore."""
+    logging.info(f"Starting data refresh for project: {project_id}")
+    try:
+        # Aggregate all data fetches here
+        org_policies = get_all_effective_policies(project_id)
+        vpc_sc_status = get_vpc_sc_status(project_id)
 
-@app.get("/api/iam-policies/{project_id}")
-def get_iam_policies(project_id: str):
-    return []
+        # More data sources can be added here in the future
+        # e.g., sha_modules, etd_status, etc.
 
-@app.get("/api/cloud-assets/{project_id}")
-def get_cloud_assets(project_id: str):
-    return []
+        dashboard_data = {
+            "org_policies": org_policies,
+            "vpc_sc_status": vpc_sc_status,
+            # Mock data for other sections until implemented
+            "identity_controls": [],
+            "data_controls": [],
+            "sha_modules": []
+        }
 
-# --- Effective Org Policies Endpoint ---
-@app.get("/api/effective-org-policies/{project_id}")
-async def get_effective_org_policies(project_id: str):
-    return await get_all_effective_policies(project_id)
+        # Save the aggregated data to Datastore
+        if not save_dashboard_data(project_id, dashboard_data):
+            raise HTTPException(status_code=500, detail="Failed to save data to Datastore.")
 
-@app.get("/api/vpc-sc-status/{project_id}")
-async def read_vpc_sc_status(project_id: str):
-    return get_vpc_sc_status(project_id)
+        return {"status": "success", "message": f"Data for project {project_id} has been refreshed and cached."}
+
+    except Exception as e:
+        logging.error(f"Error during data refresh for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/dashboard/{project_id}")
+def get_dashboard(project_id: str):
+    """Retrieves cached dashboard data from Datastore."""
+    logging.info(f"Fetching dashboard data for project: {project_id} from cache.")
+    try:
+        data = get_dashboard_data(project_id)
+        if data:
+            return data
+        else:
+            # If no data is in cache, return 404 or you could trigger a refresh
+            raise HTTPException(status_code=404, detail="No cached data found for this project. Please refresh first.")
+    except Exception as e:
+        logging.error(f"Error fetching dashboard data for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

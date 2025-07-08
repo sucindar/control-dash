@@ -239,51 +239,66 @@ export default function Home() {
   const printRef = useRef<HTMLDivElement>(null);
 
   // Determine the overall status for the border color
-  const isPerimeterIncomplete = preventativeControls.some(
+  const isPerimeterIncomplete = perimeterControls.some(
     (control) => control.status === 'Disabled' || control.status === 'Error'
   );
 
-      useEffect(() => {
+  useEffect(() => {
     const fetchControls = async () => {
       if (!projectId) return;
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      if (!backendUrl) {
+        setError('Backend URL is not configured. Please set NEXT_PUBLIC_BACKEND_URL.');
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-        setLoading(true);
-        if (!backendUrl) {
-          setError('Backend URL is not configured. Please set NEXT_PUBLIC_BACKEND_URL.');
-          setLoading(false);
-          return;
-        }
-        setError(null);
-        const response = await fetch(`${backendUrl}/api/effective-org-policies/${projectId}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const orgPoliciesResult: OrgPolicy[] = await response.json();
+        // Step 1: Trigger the backend to refresh its data from GCP and cache it.
+        const refreshResponse = await fetch(`${backendUrl}/api/refresh/${projectId}`, {
+          method: 'POST',
+        });
 
-        const vpcScResponse = await fetch(`${backendUrl}/api/vpc-sc-status/${projectId}`);
-        if (!vpcScResponse.ok) {
-          throw new Error(`HTTP error! status: ${vpcScResponse.status}`);
+        if (!refreshResponse.ok) {
+          const errorData = await refreshResponse.json();
+          throw new Error(`Failed to refresh data: ${errorData.detail || refreshResponse.statusText}`);
         }
-        const vpcScResult: PreventativeControl = await vpcScResponse.json();
 
-        const formattedOrgPolicies: PreventativeControl[] = orgPoliciesResult.map(p => ({
+        // Step 2: Fetch the now-cached data from the backend.
+        const dashboardResponse = await fetch(`${backendUrl}/api/dashboard/${projectId}`);
+        if (!dashboardResponse.ok) {
+          const errorData = await dashboardResponse.json();
+          throw new Error(`Failed to fetch dashboard data: ${errorData.detail || dashboardResponse.statusText}`);
+        }
+
+        const data = await dashboardResponse.json();
+
+        // Format the org policies from the backend into the structure the table component expects.
+        const formattedOrgPolicies: PreventativeControl[] = data.org_policies.map((p: any) => ({
           name: p.name,
           status: p.status,
           controlType: 'Org Policy',
         }));
-        
-        const allControls: PreventativeControl[] = [
-          ...formattedOrgPolicies,
-          vpcScResult,
-          { name: 'Hierarchical FW', status: 'Placeholder', controlType: 'Firewall' },
-          { name: 'Control SPL2', status: 'Placeholder', controlType: 'SPL' },
-          { name: 'Control SPL3', status: 'Placeholder', controlType: 'SPL' },
-        ];
 
-        setPreventativeControls(allControls);
-      } catch (e: any) {
-        setError(e.message);
+        // Combine VPC SC status with the org policies for the Perimeter section.
+        const vpcScControl: PreventativeControl = {
+          name: 'VPC Service Controls',
+          status: data.vpc_sc_status,
+          controlType: 'VPC SC',
+        };
+
+        const allPerimeterControls = [...formattedOrgPolicies, vpcScControl];
+
+        setPreventativeControls(allPerimeterControls);
+
+        // Future: Set other controls once their backend logic is implemented.
+        // setIdentityControls(data.identity_controls);
+        // setDataControls(data.data_controls);
+
+      } catch (error: any) {
+        setError(error.message);
       } finally {
         setLoading(false);
       }
