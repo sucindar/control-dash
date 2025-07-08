@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from org_policies import get_all_effective_policies
 from vpc_sc import get_vpc_sc_status
@@ -9,10 +9,16 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 
-# Add CORS middleware to allow all origins
+# Define allowed origins
+origins = [
+    "https://gcp-dashboard-frontend-is66mkdbpa-uc.a.run.app", # Deployed frontend
+    "http://localhost:3000", # Local development
+]
+
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
