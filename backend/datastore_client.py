@@ -6,14 +6,15 @@ logging.basicConfig(level=logging.INFO)
 
 DATASTORE_KIND = "GcpDashboardData"
 
-def get_datastore_client():
-    """Initializes and returns a Datastore client."""
-    return datastore.Client()
+def get_datastore_client(project_id: str):
+    """Initializes and returns a Datastore client for a specific project."""
+    # Explicitly pass the project_id to the client to avoid environment issues.
+    return datastore.Client(project=project_id)
 
 def save_dashboard_data(project_id: str, data: dict):
     """Saves the aggregated dashboard data to Datastore."""
     try:
-        client = get_datastore_client()
+        client = get_datastore_client(project_id)
         key = client.key(DATASTORE_KIND, project_id)
         entity = datastore.Entity(key=key)
         # Datastore doesn't support storing complex objects directly without some handling.
@@ -33,7 +34,7 @@ def save_dashboard_data(project_id: str, data: dict):
 def get_dashboard_data(project_id: str):
     """Retrieves dashboard data from Datastore."""
     try:
-        client = get_datastore_client()
+        client = get_datastore_client(project_id)
         key = client.key(DATASTORE_KIND, project_id)
         entity = client.get(key)
         if entity:

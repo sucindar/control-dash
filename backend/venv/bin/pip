@@ -1,4 +1,4 @@
-#!/Users/abiram/CascadeProjects/gcp-v2/backend/venv/bin/python
+#!/Users/abiram/CascadeProjects/gcp-v2/backend/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys

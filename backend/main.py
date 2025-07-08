@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from org_policies import get_all_effective_policies
@@ -10,13 +11,16 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 
-# Define allowed origins
+# --- CORS Middleware --- 
+# This must be placed before any routes are defined.
 origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://localhost:3003",
     "https://gcp-dashboard-frontend-is66mkdbpa-uc.a.run.app", # Deployed frontend
-    "http://localhost:3000", # Local development
 ]
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -26,14 +30,14 @@ app.add_middleware(
 )
 
 
-
 @app.post("/api/refresh/{project_id}")
-def refresh_project_data(project_id: str):
+async def refresh_project_data(project_id: str):
     """Fetches all security data from GCP APIs and caches it in Datastore."""
     logging.info(f"Starting data refresh for project: {project_id}")
     try:
-        # Aggregate all data fetches here
-        org_policies = get_all_effective_policies(project_id)
+        # Await the async task
+        org_policies = await get_all_effective_policies(project_id)
+        # Call the synchronous VPC SC function
         vpc_sc_status = get_vpc_sc_status(project_id)
 
         # More data sources can be added here in the future
@@ -42,7 +46,6 @@ def refresh_project_data(project_id: str):
         dashboard_data = {
             "org_policies": org_policies,
             "vpc_sc_status": vpc_sc_status,
-            # Mock data for other sections until implemented
             "identity_controls": [],
             "data_controls": [],
             "sha_modules": []
