@@ -247,9 +247,14 @@ export default function Home() {
     const fetchControls = async () => {
       if (!projectId) return;
       try {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
         setLoading(true);
+        if (!backendUrl) {
+          setError('Backend URL is not configured. Please set NEXT_PUBLIC_BACKEND_URL.');
+          setLoading(false);
+          return;
+        }
         setError(null);
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
         const response = await fetch(`${backendUrl}/api/effective-org-policies/${projectId}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);

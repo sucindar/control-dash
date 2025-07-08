@@ -4,19 +4,28 @@
 set -e
 
 # --- Configuration ---
-# Google Cloud Project ID
 PROJECT_ID="evol-dev-456410"
-# Google Cloud Region
 REGION="us-central1"
-# Name for your Artifact Registry repository
 REPO_NAME="gcp-security-dashboard"
-# Names for your Cloud Run services
 BACKEND_SERVICE_NAME="gcp-dashboard-backend"
-FRONTEND_SERVICE_NAME="gcp-dashboard-frontend"
 
 # --- Setup ---
 echo "--- Enabling required Google Cloud services ---"
-gcloud services enable cloudbuild.googleapis.com run.googleapis.com artifactregistry.googleapis.com --project="${PROJECT_ID}"
+gcloud services enable cloudbuild.googleapis.com run.googleapis.com artifactregistry.googleapis.com iam.googleapis.com --project="${PROJECT_ID}"
+
+echo "--- Granting Cloud Build service account permissions to deploy to Cloud Run ---"
+PROJECT_NUMBER=$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')
+CLOUD_BUILD_SERVICE_ACCOUNT="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${CLOUD_BUILD_SERVICE_ACCOUNT}" \
+    --role="roles/run.admin" \
+    --condition=None || echo "IAM role 'roles/run.admin' already exists for the service account."
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${CLOUD_BUILD_SERVICE_ACCOUNT}" \
+    --role="roles/iam.serviceAccountUser" \
+    --condition=None || echo "IAM role 'roles/iam.serviceAccountUser' already exists for the service account."
 
 echo "--- Creating Artifact Registry repository (if it doesn't exist) ---"
 gcloud artifacts repositories create "${REPO_NAME}" \
@@ -38,27 +47,8 @@ gcloud run deploy "${BACKEND_SERVICE_NAME}" \
     --allow-unauthenticated \
     --project="${PROJECT_ID}"
 
-# Get the URL of the deployed backend service
 BACKEND_URL=$(gcloud run services describe "${BACKEND_SERVICE_NAME}" --platform=managed --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)')
-echo "Backend deployed to: ${BACKEND_URL}"
-
-# --- Frontend Deployment ---
-echo "--- Building and pushing frontend image using Cloud Build ---"
-FRONTEND_IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${FRONTEND_SERVICE_NAME}:latest"
-gcloud builds submit ./frontend --tag "${FRONTEND_IMAGE_URI}" --project="${PROJECT_ID}"
-
-echo "--- Deploying frontend service to Cloud Run ---"
-gcloud run deploy "${FRONTEND_SERVICE_NAME}" \
-    --image="${FRONTEND_IMAGE_URI}" \
-    --platform=managed \
-    --region="${REGION}" \
-    --allow-unauthenticated \
-    --project="${PROJECT_ID}" \
-    --set-env-vars="NEXT_PUBLIC_BACKEND_URL=${BACKEND_URL}"
-
-FRONTEND_URL=$(gcloud run services describe "${FRONTEND_SERVICE_NAME}" --platform=managed --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)')
 
 echo "---"
-echo "Deployment complete!"
+echo "Backend deployment complete!"
 echo "Backend URL: ${BACKEND_URL}"
-echo "Frontend URL: ${FRONTEND_URL}"
