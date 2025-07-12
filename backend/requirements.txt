@@ -2,12 +2,12 @@ fastapi
 uvicorn
 gunicorn
 google-cloud-resource-manager
-google-cloud-datastore==1.12.0
+google-cloud-datastore
 google-cloud-compute
-google-cloud-org-policy==1.2.1
-google-api-python-client==2.136.0
-google-cloud-securitycentermanagement
+google-cloud-org-policy
+google-api-python-client
 google-cloud-securitycenter
+google-cloud-securitycentermanagement
 google-cloud-network-management
 google-cloud-dns
-protobuf
+protobuf>=4.21.0

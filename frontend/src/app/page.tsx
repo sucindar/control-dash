@@ -31,9 +31,10 @@ const statusColors: { [key: string]: 'success' | 'error' | 'warning' | 'default'
 };
 
 // --- Reusable Components ---
-function StatusChip({ status }: { status: string }) {
+function StatusChip({ status, displayMode = 'normal' }: { status: string; displayMode?: 'normal' | 'lowercase' }) {
   const color = statusColors[status] || 'default';
-  return <Chip label={status} color={color} size="small" />;
+  const label = displayMode === 'lowercase' ? status.toLowerCase() : status;
+  return <Chip label={label} color={color} size="small" />;
 }
 
 interface PreventativeControlsTableProps {
@@ -41,12 +42,143 @@ interface PreventativeControlsTableProps {
   onStatusClick: (event: MouseEvent<HTMLElement>, details: string) => void; // Callback to open popover
 }
 
+function DetectiveControlsTable({ controls, onStatusClick }: PreventativeControlsTableProps) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [filters, setFilters] = useState({ name: '', status: '', controlType: '', details: '' });
+  const [sortConfig, setSortConfig] = useState<{ key: keyof PreventativeControl; direction: 'asc' | 'desc' } | null>(null);
+  const [visibleFilter, setVisibleFilter] = useState<string | null>(null);
+
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const handleFilterChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+  const filteredControls = controls.filter(control =>
+    control.name.toLowerCase().includes(filters.name.toLowerCase()) &&
+    control.status.toLowerCase().includes(filters.status.toLowerCase()) &&
+    control.controlType.toLowerCase().includes(filters.controlType.toLowerCase()) &&
+    control.details.toLowerCase().includes(filters.details.toLowerCase())
+  );
+
+  const sortedControls = useMemo(() => {
+    let sortableItems = [...filteredControls];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        if (a[sortConfig.key] < b[sortConfig.key]) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (a[sortConfig.key] > b[sortConfig.key]) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [filteredControls, sortConfig]);
+
+  const paginatedControls = sortedControls.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+  const requestSort = (key: keyof PreventativeControl) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key: keyof PreventativeControl) => {
+    if (!sortConfig || sortConfig.key !== key) {
+      return <ArrowUpwardIcon fontSize="small" style={{ opacity: 0.3 }} />;
+    }
+    return sortConfig.direction === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />;
+  };
+
+  const renderHeaderCell = (key: keyof PreventativeControl, title: string) => (
+    <TableCell sortDirection={sortConfig?.key === key ? sortConfig.direction : false}>
+      <Box display="flex" alignItems="center" onClick={() => requestSort(key)} sx={{ cursor: 'pointer' }}>
+        {title}
+        {getSortIcon(key)}
+      </Box>
+      <TextField
+        name={key}
+        value={filters[key]}
+        onChange={handleFilterChange}
+        variant="standard"
+        size="small"
+        fullWidth
+        sx={{ mt: 1 }}
+      />
+    </TableCell>
+  );
+
+  return (
+    <Paper sx={{ mt: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
+        <Typography variant="h6">Detective Controls</Typography>
+        <IconButton onClick={() => setVisibleFilter(visibleFilter ? null : 'all')}>
+          <FilterListIcon />
+        </IconButton>
+      </Box>
+      <TableContainer>
+        <Table stickyHeader>
+          <TableHead>
+            <TableRow>
+              {renderHeaderCell('name', 'Control Name')}
+              {renderHeaderCell('controlType', 'Control Type')}
+              {renderHeaderCell('status', 'Status')}
+            </TableRow>
+            {visibleFilter && (
+              <TableRow>
+                <TableCell><TextField name="name" value={filters.name} onChange={handleFilterChange} variant="standard" fullWidth /></TableCell>
+                <TableCell><TextField name="controlType" value={filters.controlType} onChange={handleFilterChange} variant="standard" fullWidth /></TableCell>
+                <TableCell><TextField name="status" value={filters.status} onChange={handleFilterChange} variant="standard" fullWidth /></TableCell>
+              </TableRow>
+            )}
+          </TableHead>
+          <TableBody>
+            {paginatedControls.map((control, index) => (
+              <TableRow key={index}>
+                <TableCell>{control.name}</TableCell>
+                <TableCell>{control.controlType}</TableCell>
+                <TableCell>
+                  <Button onClick={(e) => onStatusClick(e, control.details)} style={{ padding: 0, minWidth: 0 }}>
+                    <StatusChip status={control.status} />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      <TablePagination
+        rowsPerPageOptions={[5, 10, 25]}
+        component="div"
+        count={filteredControls.length}
+        rowsPerPage={rowsPerPage}
+        page={page}
+        onPageChange={handleChangePage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+      />
+    </Paper>
+  );
+}
+
 function PreventativeControlsTable({ controls, onStatusClick }: PreventativeControlsTableProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [filters, setFilters] = useState({ name: '', status: '', controlType: '', details: '' });
   const [visibleFilter, setVisibleFilter] = useState<string | null>(null);
-  const [sortConfig, setSortConfig] = useState<{ key: keyof PreventativeControl; direction: 'ascending' | 'descending' } | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: keyof PreventativeControl; direction: 'asc' | 'desc' } | null>(null);
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -74,10 +206,10 @@ function PreventativeControlsTable({ controls, onStatusClick }: PreventativeCont
     if (sortConfig !== null) {
       sortableItems.sort((a, b) => {
         if (a[sortConfig.key] < b[sortConfig.key]) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
+          return sortConfig.direction === 'asc' ? -1 : 1;
         }
         if (a[sortConfig.key] > b[sortConfig.key]) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
+          return sortConfig.direction === 'asc' ? 1 : -1;
         }
         return 0;
       });
@@ -88,9 +220,9 @@ function PreventativeControlsTable({ controls, onStatusClick }: PreventativeCont
   const paginatedControls = sortedControls.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const requestSort = (key: keyof PreventativeControl) => {
-    let direction: 'ascending' | 'descending' = 'ascending';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
     }
     setSortConfig({ key, direction });
   };
@@ -99,7 +231,7 @@ function PreventativeControlsTable({ controls, onStatusClick }: PreventativeCont
     if (!sortConfig || sortConfig.key !== key) {
       return <ArrowUpwardIcon fontSize="small" style={{ opacity: 0.3 }} />;
     }
-    return sortConfig.direction === 'ascending' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />;
+    return sortConfig.direction === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />;
   };
 
   const renderHeaderCell = (key: keyof PreventativeControl, title: string) => (
@@ -254,6 +386,19 @@ interface ChartData {
   value: number;
 }
 
+const RADIAN = Math.PI / 180;
+const CustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }: any) => {
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+};
+
 function DashboardCharts({ controls }: { controls: PreventativeControl[] }) {
   const pieChartData: ChartData[] = useMemo(() => {
     const counts = controls.reduce((acc, control) => {
@@ -264,13 +409,18 @@ function DashboardCharts({ controls }: { controls: PreventativeControl[] }) {
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [controls]);
 
-  const barChartData: ChartData[] = useMemo(() => {
-    const counts = controls.reduce((acc, control) => {
-      acc[control.controlType] = (acc[control.controlType] || 0) + 1;
+  const barChartData = useMemo(() => {
+    const typeStatusCounts = controls.reduce((acc, control) => {
+      if (!acc[control.controlType]) {
+        acc[control.controlType] = { Enabled: 0, Disabled: 0 };
+      }
+      if (control.status === 'Enabled' || control.status === 'Disabled') {
+        acc[control.controlType][control.status]++;
+      }
       return acc;
-    }, {} as Record<string, number>);
+    }, {} as Record<string, { Enabled: number; Disabled: number }>);
 
-    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+    return Object.entries(typeStatusCounts).map(([name, statuses]) => ({ name, ...statuses }));
   }, [controls]);
 
   if (pieChartData.length === 0) return null;
@@ -280,43 +430,42 @@ function DashboardCharts({ controls }: { controls: PreventativeControl[] }) {
       <CardContent>
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            <Typography variant="h6" gutterBottom align="center">Controls Overview</Typography>
-            <Box sx={{ height: 300 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieChartData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {pieChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name as keyof typeof CHART_COLORS] || '#8884d8'} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </Box>
+            <Typography variant="h6" align="center">Preventative Controls Status</Typography>
+            <ResponsiveContainer width="100%" height={300} debounce={1}>
+              <PieChart>
+                <Pie
+                  data={pieChartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                  label={<CustomizedLabel />}
+                  isAnimationActive={false}
+                >
+                  {pieChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name as keyof typeof CHART_COLORS] || '#8884d8'} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
           </Grid>
           <Grid item xs={12} md={6}>
-            <Typography variant="h6" gutterBottom align="center">Controls by Type</Typography>
-            <Box sx={{ height: 300 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barChartData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" width={150} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#64b5f6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
+            <Typography variant="h6" align="center">Controls by Type</Typography>
+            <ResponsiveContainer width="100%" height={300} debounce={1}>
+              <BarChart data={barChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="Enabled" stackId="a" fill="#4caf50" />
+                <Bar dataKey="Disabled" stackId="a" fill="#f44336" />
+              </BarChart>
+            </ResponsiveContainer>
           </Grid>
         </Grid>
       </CardContent>
@@ -329,6 +478,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://gcp-dashboar
 
 export default function Home() {
   const [preventativeControls, setPreventativeControls] = useState<PreventativeControl[]>([]);
+  const [detectiveControls, setDetectiveControls] = useState<PreventativeControl[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('evol-dev-456410');
@@ -395,21 +545,53 @@ export default function Home() {
       }
       const data = await response.json();
 
-      const formattedOrgPolicies: PreventativeControl[] = data.org_policies.map((p: OrgPolicy) => ({
+      // Check for backend-specific error response
+      if (data.error) {
+        throw new Error(data.detail || 'An error occurred on the backend.');
+      }
+
+      const formattedOrgPolicies: PreventativeControl[] = (data.org_policies || []).map((p: OrgPolicy) => ({
         name: p.name,
         status: p.status,
         controlType: 'Org Policy',
-        details: p.details, // Use the new detailed field from the backend
+        details: p.details,
       }));
 
-      const vpcScControl: PreventativeControl = {
-        name: data.vpc_sc_status.name,
-        status: data.vpc_sc_status.status,
-        controlType: 'VPC SC',
-        details: data.vpc_sc_status.details, // Use the details field from the backend
-      };
+      const formattedShaModules: PreventativeControl[] = (data.sha_modules || []).map((m: any) => ({
+        name: m.name,
+        status: m.status,
+        controlType: m.controlType,
+        details: m.details,
+      }));
 
-      const allPerimeterControls = [...formattedOrgPolicies, vpcScControl];
+      const formattedSecurityServices: PreventativeControl[] = (data.security_services || []).map((s: any) => ({
+        name: s.name,
+        status: s.status,
+        controlType: s.controlType,
+        details: s.details,
+      }));
+
+      const vpcScControl: PreventativeControl | null = data.vpc_sc && data.vpc_sc[0] ? {
+        name: data.vpc_sc[0].name,
+        status: data.vpc_sc[0].status,
+        controlType: 'VPC SC',
+        details: data.vpc_sc[0].details,
+      } : null;
+
+      const allPreventativeControls = [
+        ...formattedOrgPolicies,
+        ...(vpcScControl ? [vpcScControl] : []),
+      ];
+      setPreventativeControls(allPreventativeControls);
+
+      const allDetectiveControls = [...formattedShaModules, ...formattedSecurityServices];
+      setDetectiveControls(allDetectiveControls);
+      setDetectiveControls(allDetectiveControls);
+
+      let allPerimeterControls = [...formattedOrgPolicies];
+      if (vpcScControl) {
+        allPerimeterControls.push(vpcScControl);
+      }
       setPreventativeControls(allPerimeterControls);
 
     } catch (err: any) {
@@ -480,8 +662,8 @@ export default function Home() {
       <Container ref={printRef} maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         {error && <Typography color="error">Failed to load data: {error}</Typography>}
         {loading && <Typography>Loading...</Typography>}
-        {!loading && !error && preventativeControls.length > 0 && (
-          <DashboardCharts controls={preventativeControls} />
+        {!loading && !error && (preventativeControls.length > 0 || detectiveControls.length > 0) && (
+          <DashboardCharts controls={[...preventativeControls, ...detectiveControls]} />
         )}
         {!loading && !error && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -495,7 +677,10 @@ export default function Home() {
                 controls={preventativeControls} 
                 onStatusClick={handleStatusClick} 
               />
-              <DetectiveControlsPlaceholder />
+              <DetectiveControlsTable 
+                controls={detectiveControls} 
+                onStatusClick={handleStatusClick} 
+              />
             </AccordionSection>
             <AccordionSection 
               title="Identity Controls" 

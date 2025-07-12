@@ -4,10 +4,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from org_policies import get_all_effective_policies
 from vpc_sc import get_vpc_sc_status
+from sha_modules import get_sha_custom_modules, get_sha_modules
+from scc_services import get_security_center_services
 from datastore_client import save_dashboard_data, get_dashboard_data
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 app = FastAPI()
 
@@ -37,18 +39,47 @@ async def refresh_project_data(project_id: str):
     try:
         # Await the async task
         org_policies = await get_all_effective_policies(project_id)
-        # Call the synchronous VPC SC function
+        # Call the synchronous functions
         vpc_sc_status = get_vpc_sc_status(project_id)
+        sha_custom_modules = get_sha_custom_modules(project_id)
+        sha_module_details = get_sha_modules(project_id)
+        other_security_services = get_security_center_services(project_id)
 
-        # More data sources can be added here in the future
-        # e.g., sha_modules, etd_status, etc.
+        # Combine all security services and modules
+        all_sha_modules = sha_custom_modules
+        if sha_module_details and 'modules' in sha_module_details:
+            for module in sha_module_details['modules']:
+                all_sha_modules.append({
+                    'name': module.get('name'),
+                    'status': module.get('status'),
+                    'controlType': 'SHA Module',
+                    'details': f"Part of {sha_module_details.get('name')}"
+                })
+
+        # Process security services to handle modules as requested
+        processed_security_services = []
+        for service in other_security_services:
+            if service.get('modules'):
+                # Extract the service_id from the details string, e.g., "Service ID: web-security-scanner"
+                service_id = service.get('details', '').replace('Service ID: ', '')
+                for module in service['modules']:
+                    processed_security_services.append({
+                        'name': module.get('name'),
+                        'status': module.get('status'),
+                        'controlType': service_id,  # Use the parent's service ID as the control type
+                        'details': f"Part of {service.get('name')}"
+                    })
+            else:
+                # If the service has no modules, add it as is.
+                processed_security_services.append(service)
 
         dashboard_data = {
             "org_policies": org_policies,
-            "vpc_sc_status": vpc_sc_status,
+            "vpc_sc": [vpc_sc_status],  # Store as a list for consistency
+            "sha_modules": all_sha_modules,
+            "security_services": processed_security_services,
             "identity_controls": [],
             "data_controls": [],
-            "sha_modules": []
         }
 
         # Save the aggregated data to Datastore
