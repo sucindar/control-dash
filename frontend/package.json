@@ -22,7 +22,7 @@
     "react-dom": "^18",
     "reaviz": "^14.1.6",
     "recharts": "^3.1.0",
-    "@mui/x-charts": "^7.7.0"
+    "react-markdown": "^9.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

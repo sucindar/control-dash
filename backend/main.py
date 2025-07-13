@@ -2,7 +2,7 @@ import logging
 import asyncio
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from org_policies import get_all_effective_policies
 from vpc_sc import get_vpc_sc_status
@@ -11,6 +11,7 @@ from scc_services import get_security_center_services
 from datastore_client import save_dashboard_data, get_dashboard_data, save_projects_data, get_projects_data
 from projects import get_projects_in_org
 from firewall import get_denied_internet_ingress_rules
+from vertex_ai import generate_summary
 
 load_dotenv()
 
@@ -108,10 +109,11 @@ def get_dashboard(project_id: str):
 @app.get("/api/config")
 def get_config():
     """Returns configuration details from environment variables."""
-    datastore_project_id = os.getenv("DATASTORE_PROJECT_ID")
-    if not datastore_project_id:
-        raise HTTPException(status_code=500, detail="DATASTORE_PROJECT_ID not set in the environment.")
-    return {"datastore_project_id": datastore_project_id}
+    dashboard_gcp_project_id = os.getenv("DASHBOARD_GCP_PROJECT_ID")
+    if not dashboard_gcp_project_id:
+        raise HTTPException(status_code=500, detail="DASHBOARD_GCP_PROJECT_ID not set in the environment.")
+    ai_summary_enabled = os.getenv("AI_SUMMARY_ENABLED", "false").lower() == "true"
+    return {"dashboard_gcp_project_id": dashboard_gcp_project_id, "ai_summary_enabled": ai_summary_enabled}
 
 @app.get("/api/projects")
 def list_projects():
@@ -126,3 +128,18 @@ def list_projects():
         return data["projects"]
     else:
         raise HTTPException(status_code=404, detail="No cached project data found. Please refresh first.")
+
+@app.post("/api/summarize")
+async def summarize_data(request: Request):
+    """Generates a summary of the provided data using the Vertex AI service."""
+    ai_summary_enabled = os.getenv("AI_SUMMARY_ENABLED", "false").lower() == "true"
+    if not ai_summary_enabled:
+        raise HTTPException(status_code=403, detail="AI summary feature is disabled.")
+
+    try:
+        data = await request.json()
+        summary = generate_summary(str(data))
+        return {"summary": summary}
+    except Exception as e:
+        logging.error(f"Error generating summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

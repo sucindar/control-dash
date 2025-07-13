@@ -8,14 +8,14 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 DATASTORE_KIND = "GcpDashboardData"
-DATASTORE_PROJECT_ID = os.getenv("DATASTORE_PROJECT_ID")
+DASHBOARD_GCP_PROJECT_ID = os.getenv("DASHBOARD_GCP_PROJECT_ID")
 
-if not DATASTORE_PROJECT_ID or DATASTORE_PROJECT_ID == "YOUR_DATASTORE_PROJECT_ID_HERE":
-    raise RuntimeError("DATASTORE_PROJECT_ID is not set in the .env file.")
+if not DASHBOARD_GCP_PROJECT_ID or DASHBOARD_GCP_PROJECT_ID == "YOUR_DATASTORE_PROJECT_ID_HERE":
+    raise RuntimeError("DASHBOARD_GCP_PROJECT_ID is not set in the .env file.")
 
 def get_datastore_client():
     """Initializes and returns a Datastore client."""
-    return datastore.Client(project=DATASTORE_PROJECT_ID)
+    return datastore.Client(project=DASHBOARD_GCP_PROJECT_ID)
 
 def save_dashboard_data(project_id: str, data: dict):
     """Saves the aggregated dashboard data to Datastore."""

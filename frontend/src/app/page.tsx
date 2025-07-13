@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, ChangeEvent, ReactNode, useRef, MouseEvent, useMemo, useContext, useCallback } from 'react';
 import { AppBar, Box, Button, Card, CardContent, Chip, Container, List, ListItem, ListItemText, Toolbar, Typography, Accordion, AccordionSummary, AccordionDetails, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Paper, TextField, Popover, IconButton, Grid, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import ReactMarkdown from 'react-markdown';
 import { useTheme } from '@mui/material/styles';
 import { ColorModeContext } from './ColorModeContext';
 import { LineChart } from '@mui/x-charts/LineChart';
@@ -465,13 +466,51 @@ export default function Home() {
   const printRef = useRef<HTMLDivElement>(null);
   const [popoverAnchorEl, setPopoverAnchorEl] = useState<HTMLElement | null>(null);
   const [popoverContent, setPopoverContent] = useState('');
-  const [expandedPanel, setExpandedPanel] = useState<string | false>(false);
+  const [expandedPanel, setExpandedPanel] = useState<string | false>('perimeter');
 
   const isPerimeterIncomplete = preventativeControls.some(c => c.status !== 'Enabled');
+
+  const [summary, setSummary] = useState('');
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
+  const [aiSummaryEnabled, setAiSummaryEnabled] = useState(false);
 
   const handlePanelChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
     setExpandedPanel(isExpanded ? panel : false);
   };
+
+  useEffect(() => {
+    const fetchSummary = async (dataForSummary: any) => {
+      setSummaryLoading(true);
+      setSummaryError('');
+      setSummary('');
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/summarize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataForSummary),
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to fetch summary');
+        }
+        const data = await response.json();
+        setSummary(data.summary);
+      } catch (error: any) {
+        setSummaryError(error.message);
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+
+    if (preventativeControls.length > 0 || detectiveControls.length > 0) {
+      const dataForSummary = {
+        preventative_controls: preventativeControls,
+        detective_controls: detectiveControls,
+      };
+      fetchSummary(dataForSummary);
+    }
+  }, [preventativeControls, detectiveControls]);
 
   const handleStatusClick = (event: MouseEvent<HTMLElement>, details: string) => {
     setPopoverAnchorEl(event.currentTarget);
@@ -512,12 +551,15 @@ export default function Home() {
       try {
         const response = await fetch(`${BACKEND_URL}/api/config`);
         if (!response.ok) {
-          console.error('Failed to fetch default project config');
+          console.error('Failed to fetch config');
           return;
         }
         const config = await response.json();
-        if (config.datastore_project_id) {
-          setProjectId(config.datastore_project_id);
+        if (config.dashboard_gcp_project_id) {
+          setProjectId(config.dashboard_gcp_project_id);
+        }
+        if (config.ai_summary_enabled !== undefined) {
+          setAiSummaryEnabled(config.ai_summary_enabled);
         }
       } catch (error) {
         console.error('Error fetching config:', error);
@@ -720,7 +762,42 @@ export default function Home() {
         {error && <Typography color="error">Failed to load data: {error}</Typography>}
         {loading && <Typography>Loading...</Typography>}
         {!loading && !error && (preventativeControls.length > 0 || detectiveControls.length > 0) && (
-          <DashboardCharts preventativeControls={preventativeControls} detectiveControls={detectiveControls} />
+          <>
+            {aiSummaryEnabled && (
+              <>
+                {summaryLoading && <Typography sx={{ mt: 2, mb: 2 }}>Generating AI summary...</Typography>}
+                {summaryError && <Typography color="error" sx={{ mt: 2, mb: 2 }}>Error: {summaryError}</Typography>}
+                {summary && !summaryLoading && !summaryError && (
+                  <Accordion sx={{ mt: 2,  border: 1, borderColor: 'divider' }}>
+                    <AccordionSummary
+                      expandIcon={<ExpandMoreIcon />}
+                      aria-controls="panel1a-content"
+                      id="panel1a-header"
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <img src="/ai-logo.gif" alt="AI Logo" style={{ width: '28px', height: '28px' }} />
+                        <Typography variant="h6">AI Summary</Typography>
+                      </Box>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <ReactMarkdown
+                        components={{
+                          h1: ({node, ...props}) => <Typography variant="h4" gutterBottom {...props} />,
+                          h2: ({node, ...props}) => <Typography variant="h5" gutterBottom {...props} />,
+                          h3: ({node, ...props}) => <Typography variant="h6" gutterBottom {...props} />,
+                          p: ({node, ...props}) => <Typography variant="body1" paragraph {...props} />,
+                          li: ({node, ...props}) => <ListItem sx={{ display: 'list-item', ml: 4 }}><Typography variant="body1" {...props} /></ListItem>,
+                        }}
+                      >
+                        {summary}
+                      </ReactMarkdown>
+                    </AccordionDetails>
+                  </Accordion>
+                )}
+              </>
+            )}
+            <DashboardCharts preventativeControls={preventativeControls} detectiveControls={detectiveControls} />
+          </>
         )}
         {!loading && !error && (
           <Box sx={{

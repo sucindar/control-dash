@@ -11,7 +11,7 @@ class TestDatastoreClient(unittest.TestCase):
 
     def setUp(self):
         """Set a valid environment variable and reload the module before each test."""
-        self.patcher = patch.dict(os.environ, {'DATASTORE_PROJECT_ID': 'test-datastore-project'})
+        self.patcher = patch.dict(os.environ, {'DASHBOARD_GCP_PROJECT_ID': 'test-datastore-project'})
         self.patcher.start()
         global datastore_client
         import datastore_client
@@ -60,7 +60,7 @@ class TestDatastoreClient(unittest.TestCase):
     def test_datastore_project_id_not_set(self):
         """Test that a RuntimeError is raised if the environment variable is not set."""
         self.patcher.stop() # Stop the default patcher
-        with patch.dict(os.environ, {'DATASTORE_PROJECT_ID': ''}):
+        with patch.dict(os.environ, {'DASHBOARD_GCP_PROJECT_ID': ''}):
             with self.assertRaises(RuntimeError):
                 import datastore_client
                 importlib.reload(datastore_client)
