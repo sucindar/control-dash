@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState, ChangeEvent, ReactNode, useRef, MouseEvent, useMemo, useContext } from 'react';
-import { AppBar, Box, Button, Card, CardContent, Chip, Container, List, ListItem, ListItemText, Toolbar, Typography, Accordion, AccordionSummary, AccordionDetails, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Paper, TextField, Popover, IconButton, Grid } from '@mui/material';
+import { useEffect, useState, ChangeEvent, ReactNode, useRef, MouseEvent, useMemo, useContext, useCallback } from 'react';
+import { AppBar, Box, Button, Card, CardContent, Chip, Container, List, ListItem, ListItemText, Toolbar, Typography, Accordion, AccordionSummary, AccordionDetails, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Paper, TextField, Popover, IconButton, Grid, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { ColorModeContext } from './ColorModeContext';
 import { LineChart } from '@mui/x-charts/LineChart';
@@ -454,10 +454,13 @@ export default function Home() {
   const colorMode = useContext(ColorModeContext);
   const [preventativeControls, setPreventativeControls] = useState<PreventativeControl[]>([]);
   const [detectiveControls, setDetectiveControls] = useState<PreventativeControl[]>([]);
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [inputValue, setInputValue] = useState('evol-dev-456410');
-  const [projectId, setProjectId] = useState('evol-dev-456410');
+  const [projectId, setProjectId] = useState('');
+  const [projects, setProjects] = useState<{ project_id: string; display_name: string; }[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const [popoverAnchorEl, setPopoverAnchorEl] = useState<HTMLElement | null>(null);
@@ -482,22 +485,64 @@ export default function Home() {
   const open = Boolean(popoverAnchorEl);
   const id = open ? 'details-popover' : undefined;
 
-  const handleLoadClick = async () => {
-    if (!inputValue) {
-      setError('Project ID is required.');
+  const fetchProjects = useCallback(async () => {
+    setProjectsLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/projects`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to load projects');
+      }
+      const data = await response.json();
+      setProjects(data);
+      setProjectsError(null);
+    } catch (error: any) {
+      setProjectsError(error.message);
+      setProjects([]);
+    }
+    setProjectsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/config`);
+        if (!response.ok) {
+          console.error('Failed to fetch default project config');
+          return;
+        }
+        const config = await response.json();
+        if (config.datastore_project_id) {
+          setProjectId(config.datastore_project_id);
+        }
+      } catch (error) {
+        console.error('Error fetching config:', error);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const handleRefreshClick = async () => {
+    if (!projectId) {
+      setError('Project ID is required to refresh data.');
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/refresh/${inputValue}`, {
+      const response = await fetch(`${BACKEND_URL}/api/refresh/${projectId}`, {
         method: 'POST',
       });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to load data.');
+        throw new Error(errorData.detail || 'Failed to refresh data.');
       }
-      // Optionally, you can show a success message here
+      // Optionally, you can show a success message here or refetch the dashboard data
+      await handleFetchData(); // Refetch data to show the latest
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -505,15 +550,18 @@ export default function Home() {
     }
   };
 
-  const handleViewClick = async () => {
-    if (!inputValue) {
-      setError('Project ID is required.');
+  const handleFetchData = async () => {
+    if (!projectId) {
+      setError('Please select a project ID.');
       return;
     }
+
+    // Also refresh the project list from the cache
+    fetchProjects();
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/dashboard/${inputValue}`);
+      const response = await fetch(`${BACKEND_URL}/api/dashboard/${projectId}`);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to view data. Please load it first.');
@@ -558,12 +606,32 @@ export default function Home() {
         });
       });
 
-      // Detective: Security Services
-      (data.security_services || []).forEach((s: any) => {
+      // Preventative: VPC SC
+      if (data.vpc_sc) {
+        preventativeControls.push({
+          name: data.vpc_sc.name,
+          status: data.vpc_sc.status,
+          controlType: 'VPC-SC',
+          details: data.vpc_sc.details,
+        });
+      }
+
+      // Preventative: Firewall Rules
+      (data.firewall || []).forEach((f: any) => {
+        preventativeControls.push({
+          name: f.name,
+          status: f.status,
+          controlType: f.controlType,
+          details: f.details,
+        });
+      });
+
+      // Detective: SCC Services
+      (data.scc_services || []).forEach((s: any) => {
         detectiveControls.push({
           name: s.name,
           status: s.status,
-          controlType: s.controlType, // 'Security Service'
+          controlType: s.controlType,
           details: s.details,
         });
       });
@@ -591,7 +659,7 @@ export default function Home() {
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`gcp-security-controls-${inputValue}.pdf`);
+        pdf.save(`gcp-security-controls-${projectId}.pdf`);
       } catch (error) {
         console.error('Error exporting PDF:', error);
         setError('Failed to export PDF.');
@@ -614,28 +682,29 @@ export default function Home() {
             Private Isolated Controls
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TextField
-              label="Project ID"
-              variant="outlined"
-              size="small"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              sx={{
-                '& .MuiInputBase-root': {
-                  color: 'inherit',
-                },
-                '& .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'inherit',
-                },
-                '& .MuiInputLabel-root': {
-                  color: 'inherit',
-                },
-              }}
-            />
-            <IconButton onClick={handleViewClick} disabled={loading || isExporting} color="inherit">
+            <FormControl sx={{ mr: 2, minWidth: 240 }} size="small">
+              <InputLabel id="project-select-label">Project</InputLabel>
+              <Select
+                labelId="project-select-label"
+                id="project-select"
+                value={projectId}
+                label="Project"
+                onChange={(e) => setProjectId(e.target.value)}
+                disabled={projectsLoading || !!projectsError}
+              >
+                {projectsLoading && <MenuItem value=""><em>Loading projects...</em></MenuItem>}
+                {projectsError && <MenuItem value=""><em>{projectsError}</em></MenuItem>}
+                {projects.map((p) => (
+                  <MenuItem key={p.project_id} value={p.project_id}>
+                    {p.display_name} ({p.project_id})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <IconButton onClick={handleFetchData} disabled={loading || isExporting} color="inherit">
               <VisibilityIcon />
             </IconButton>
-            <IconButton onClick={handleLoadClick} disabled={loading || isExporting} color="inherit">
+            <IconButton onClick={handleRefreshClick} disabled={loading || isExporting} color="inherit">
               <RefreshIcon />
             </IconButton>
             <IconButton onClick={handleExportPDF} disabled={isExporting} color="inherit">
@@ -678,6 +747,7 @@ export default function Home() {
                 controls={detectiveControls} 
                 onStatusClick={handleStatusClick} 
               />
+
             </AccordionSection>
             <AccordionSection 
               title="Identity Controls" 

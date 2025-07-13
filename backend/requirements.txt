@@ -11,3 +11,4 @@ google-cloud-securitycentermanagement
 google-cloud-network-management
 google-cloud-dns
 protobuf>=4.21.0
+python-dotenv

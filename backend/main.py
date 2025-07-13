@@ -1,12 +1,18 @@
 import logging
 import asyncio
+import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from org_policies import get_all_effective_policies
 from vpc_sc import get_vpc_sc_status
 from sha_modules import get_sha_custom_modules, get_sha_modules
 from scc_services import get_security_center_services
-from datastore_client import save_dashboard_data, get_dashboard_data
+from datastore_client import save_dashboard_data, get_dashboard_data, save_projects_data, get_projects_data
+from projects import get_projects_in_org
+from firewall import get_denied_internet_ingress_rules
+
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -34,59 +40,51 @@ app.add_middleware(
 
 @app.post("/api/refresh/{project_id}")
 async def refresh_project_data(project_id: str):
-    """Fetches all security data from GCP APIs and caches it in Datastore."""
+    """Fetches security data and project hierarchy, then caches both in Datastore."""
     logging.info(f"Starting data refresh for project: {project_id}")
     try:
-        # Await the async task
+        # Fetch and process security data
         org_policies = await get_all_effective_policies(project_id)
-        # Call the synchronous functions
         vpc_sc_status = get_vpc_sc_status(project_id)
         sha_custom_modules = get_sha_custom_modules(project_id)
         sha_module_details = get_sha_modules(project_id)
         other_security_services = get_security_center_services(project_id)
+        denied_firewall_rules = get_denied_internet_ingress_rules(project_id)
 
-        # Combine all security services and modules
         all_sha_modules = sha_custom_modules
         if sha_module_details and 'modules' in sha_module_details:
-            for module in sha_module_details['modules']:
-                all_sha_modules.append({
-                    'name': module.get('name'),
-                    'status': module.get('status'),
-                    'controlType': 'SHA Module',
-                    'details': f"Part of {sha_module_details.get('name')}"
-                })
+            all_sha_modules.extend([{'name': m.get('name'), 'status': m.get('status'), 'controlType': 'SHA Module', 'details': f"Part of {sha_module_details.get('name')}"} for m in sha_module_details['modules']])
 
-        # Process security services to handle modules as requested
         processed_security_services = []
         for service in other_security_services:
             if service.get('modules'):
-                # Extract the service_id from the details string, e.g., "Service ID: web-security-scanner"
                 service_id = service.get('details', '').replace('Service ID: ', '')
-                for module in service['modules']:
-                    processed_security_services.append({
-                        'name': module.get('name'),
-                        'status': module.get('status'),
-                        'controlType': service_id,  # Use the parent's service ID as the control type
-                        'details': f"Part of {service.get('name')}"
-                    })
+                processed_security_services.extend([{'name': m.get('name'), 'status': m.get('status'), 'controlType': service_id, 'details': f"Part of {service.get('name')}"} for m in service['modules']])
             else:
-                # If the service has no modules, add it as is.
                 processed_security_services.append(service)
 
         dashboard_data = {
             "org_policies": org_policies,
-            "vpc_sc": [vpc_sc_status],  # Store as a list for consistency
+            "vpc_sc": vpc_sc_status,
+            "scc_services": processed_security_services,
             "sha_modules": all_sha_modules,
-            "security_services": processed_security_services,
-            "identity_controls": [],
-            "data_controls": [],
+            "firewall": denied_firewall_rules
         }
 
-        # Save the aggregated data to Datastore
         if not save_dashboard_data(project_id, dashboard_data):
-            raise HTTPException(status_code=500, detail="Failed to save data to Datastore.")
+            raise HTTPException(status_code=500, detail="Failed to save dashboard data.")
 
-        return {"status": "success", "message": f"Data for project {project_id} has been refreshed and cached."}
+        # After refreshing project data, also refresh and save the organization's project list
+        logging.info("Refreshing organization's project list...")
+        org_id = os.getenv("ORGANIZATION_ID")
+        if not org_id:
+            logging.error("ORGANIZATION_ID not found. Skipping project list refresh.")
+        else:
+            projects_data = get_projects_in_org()
+            if not save_projects_data(org_id, {"projects": projects_data}):
+                logging.error("Failed to save project hierarchy to Datastore.")
+
+        return {"status": "success", "message": f"Data for project {project_id} refreshed and cached."}
 
     except Exception as e:
         logging.error(f"Error during data refresh for project {project_id}: {e}")
@@ -106,3 +104,25 @@ def get_dashboard(project_id: str):
     except Exception as e:
         logging.error(f"Error fetching dashboard data for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/config")
+def get_config():
+    """Returns configuration details from environment variables."""
+    datastore_project_id = os.getenv("DATASTORE_PROJECT_ID")
+    if not datastore_project_id:
+        raise HTTPException(status_code=500, detail="DATASTORE_PROJECT_ID not set in the environment.")
+    return {"datastore_project_id": datastore_project_id}
+
+@app.get("/api/projects")
+def list_projects():
+    """Lists all projects in the organization from the Datastore cache."""
+    logging.info("Fetching projects from Datastore cache.")
+    org_id = os.getenv("ORGANIZATION_ID")
+    if not org_id:
+        raise HTTPException(status_code=500, detail="ORGANIZATION_ID not set.")
+
+    data = get_projects_data(org_id)
+    if data and "projects" in data:
+        return data["projects"]
+    else:
+        raise HTTPException(status_code=404, detail="No cached project data found. Please refresh first.")
