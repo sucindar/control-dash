@@ -8,13 +8,30 @@ const roboto = Roboto({
   display: 'swap',
 });
 
-const theme = createTheme({
+const getTheme = (mode: 'light' | 'dark') => createTheme({
   palette: {
-    mode: 'light',
+    mode,
+    ...(mode === 'dark'
+      ? {
+          // palette values for dark mode
+          primary: {
+            main: '#90caf9',
+          },
+          background: {
+            default: '#121212',
+            paper: '#1e1e1e',
+          },
+        }
+      : {
+          // palette values for light mode
+          primary: {
+            main: '#1976d2',
+          },
+        }),
   },
   typography: {
     fontFamily: roboto.style.fontFamily,
   },
 });
 
-export default theme;
+export default getTheme;

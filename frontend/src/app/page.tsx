@@ -1,13 +1,20 @@
 'use client';
-import { useEffect, useState, ChangeEvent, ReactNode, useRef, MouseEvent, useMemo } from 'react';
+import { useEffect, useState, ChangeEvent, ReactNode, useRef, MouseEvent, useMemo, useContext } from 'react';
 import { AppBar, Box, Button, Card, CardContent, Chip, Container, List, ListItem, ListItemText, Toolbar, Typography, Accordion, AccordionSummary, AccordionDetails, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, Paper, TextField, Popover, IconButton, Grid } from '@mui/material';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { useTheme } from '@mui/material/styles';
+import { ColorModeContext } from './ColorModeContext';
+import { LineChart } from '@mui/x-charts/LineChart';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 // --- Data Structures ---
 interface PreventativeControl {
@@ -37,12 +44,12 @@ function StatusChip({ status, displayMode = 'normal' }: { status: string; displa
   return <Chip label={label} color={color} size="small" />;
 }
 
-interface PreventativeControlsTableProps {
+interface PerimeterPreventativeControlsTableProps {
   controls: PreventativeControl[];
   onStatusClick: (event: MouseEvent<HTMLElement>, details: string) => void; // Callback to open popover
 }
 
-function DetectiveControlsTable({ controls, onStatusClick }: PreventativeControlsTableProps) {
+function PerimeterDetectiveControlsTable({ controls, onStatusClick }: PerimeterPreventativeControlsTableProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [filters, setFilters] = useState({ name: '', status: '', controlType: '', details: '' });
@@ -104,31 +111,32 @@ function DetectiveControlsTable({ controls, onStatusClick }: PreventativeControl
   };
 
   const renderHeaderCell = (key: keyof PreventativeControl, title: string) => (
-    <TableCell sortDirection={sortConfig?.key === key ? sortConfig.direction : false}>
-      <Box display="flex" alignItems="center" onClick={() => requestSort(key)} sx={{ cursor: 'pointer' }}>
-        {title}
-        {getSortIcon(key)}
+    <TableCell>
+      
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        {visibleFilter === key ? (
+          <TextField
+            name={key}
+            label={`Filter by ${title}`}
+            value={filters[key]}
+            onChange={handleFilterChange}
+            variant="standard"
+            fullWidth
+            autoFocus
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{title}</Typography>
+        )}
+        <IconButton size="small" onClick={() => requestSort(key)}>{getSortIcon(key)}</IconButton>
+        <IconButton size="small" onClick={() => setVisibleFilter(visibleFilter === key ? null : key)}><FilterListIcon fontSize="small" /></IconButton>
       </Box>
-      <TextField
-        name={key}
-        value={filters[key]}
-        onChange={handleFilterChange}
-        variant="standard"
-        size="small"
-        fullWidth
-        sx={{ mt: 1 }}
-      />
     </TableCell>
   );
 
   return (
     <Paper sx={{ mt: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
-        <Typography variant="h6">Detective Controls</Typography>
-        <IconButton onClick={() => setVisibleFilter(visibleFilter ? null : 'all')}>
-          <FilterListIcon />
-        </IconButton>
-      </Box>
+      <Typography variant="h6" sx={{ p: 2 }}>Detective Controls</Typography>
       <TableContainer>
         <Table stickyHeader>
           <TableHead>
@@ -137,23 +145,19 @@ function DetectiveControlsTable({ controls, onStatusClick }: PreventativeControl
               {renderHeaderCell('controlType', 'Control Type')}
               {renderHeaderCell('status', 'Status')}
             </TableRow>
-            {visibleFilter && (
-              <TableRow>
-                <TableCell><TextField name="name" value={filters.name} onChange={handleFilterChange} variant="standard" fullWidth /></TableCell>
-                <TableCell><TextField name="controlType" value={filters.controlType} onChange={handleFilterChange} variant="standard" fullWidth /></TableCell>
-                <TableCell><TextField name="status" value={filters.status} onChange={handleFilterChange} variant="standard" fullWidth /></TableCell>
-              </TableRow>
-            )}
+
           </TableHead>
           <TableBody>
             {paginatedControls.map((control, index) => (
               <TableRow key={index}>
                 <TableCell>{control.name}</TableCell>
                 <TableCell>{control.controlType}</TableCell>
-                <TableCell>
-                  <Button onClick={(e) => onStatusClick(e, control.details)} style={{ padding: 0, minWidth: 0 }}>
-                    <StatusChip status={control.status} />
-                  </Button>
+                <TableCell onClick={(event) => onStatusClick(event, control.details)} style={{ cursor: 'pointer' }}>
+                  <Chip
+                    label={control.status}
+                    color={statusColors[control.status] || 'default'}
+                    size="small"
+                  />
                 </TableCell>
               </TableRow>
             ))}
@@ -173,7 +177,7 @@ function DetectiveControlsTable({ controls, onStatusClick }: PreventativeControl
   );
 }
 
-function PreventativeControlsTable({ controls, onStatusClick }: PreventativeControlsTableProps) {
+function PerimeterPreventativeControlsTable({ controls, onStatusClick }: PerimeterPreventativeControlsTableProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [filters, setFilters] = useState({ name: '', status: '', controlType: '', details: '' });
@@ -258,16 +262,19 @@ function PreventativeControlsTable({ controls, onStatusClick }: PreventativeCont
   );
 
   return (
-    <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-      <TableContainer>
+    <Paper sx={{ width: '100%', overflow: 'hidden', mt: 2 }}>
+
+      <Typography variant="h6" sx={{ p: 2 }}>Preventative Controls</Typography>
+      <TableContainer sx={{ maxHeight: 440 }}>
         <Table stickyHeader aria-label="preventative controls table">
           <TableHead>
             <TableRow>
-              {renderHeaderCell('name', 'Preventative Control')}
+              {renderHeaderCell('name', 'Control Name')}
               {renderHeaderCell('controlType', 'Control Type')}
               {renderHeaderCell('status', 'Status')}
             </TableRow>
-          </TableHead>
+
+          </TableHead>  
           <TableBody>
             {paginatedControls.map((row) => (
               <TableRow hover role="checkbox" tabIndex={-1} key={row.name}>
@@ -311,7 +318,7 @@ interface AccordionSectionProps {
 function AccordionSection({ title, children, incomplete, expanded, onChange }: AccordionSectionProps) {
   return (
     <Accordion 
-      sx={{ border: `1px solid ${incomplete ? '#f44336' : 'green'}`, '&:before': { display: 'none' } }} 
+      sx={{ border: incomplete ? '2px solid red' : '2px solid green', '&:before': { display: 'none' } }} 
       expanded={expanded}
       onChange={onChange}
     >
@@ -387,86 +394,52 @@ interface ChartData {
 }
 
 const RADIAN = Math.PI / 180;
-const CustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }: any) => {
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
-  return (
-    <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
-      {`${(percent * 100).toFixed(0)}%`}
-    </text>
-  );
-};
+function DashboardCharts({ preventativeControls, detectiveControls }: { preventativeControls: PreventativeControl[], detectiveControls: PreventativeControl[] }) {
+  const generateChartData = (controls: PreventativeControl[]) => {
+    return Object.entries(
+      controls.reduce((acc, control) => {
+        if (!acc[control.controlType]) {
+          acc[control.controlType] = { Enabled: 0, Disabled: 0 };
+        }
+        if (control.status === 'Enabled') {
+          acc[control.controlType].Enabled += 1;
+        } else if (control.status === 'Disabled') {
+          acc[control.controlType].Disabled += 1;
+        }
+        return acc;
+      }, {} as Record<string, { Enabled: number; Disabled: number }>)
+    ).map(([controlType, values]) => ({ controlType, ...values }));
+  };
 
-function DashboardCharts({ controls }: { controls: PreventativeControl[] }) {
-  const pieChartData: ChartData[] = useMemo(() => {
-    const counts = controls.reduce((acc, control) => {
-      acc[control.status] = (acc[control.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+  const preventativeData = generateChartData(preventativeControls);
+  const detectiveData = generateChartData(detectiveControls);
 
-    return Object.entries(counts).map(([name, value]) => ({ name, value }));
-  }, [controls]);
-
-  const barChartData = useMemo(() => {
-    const typeStatusCounts = controls.reduce((acc, control) => {
-      if (!acc[control.controlType]) {
-        acc[control.controlType] = { Enabled: 0, Disabled: 0 };
-      }
-      if (control.status === 'Enabled' || control.status === 'Disabled') {
-        acc[control.controlType][control.status]++;
-      }
-      return acc;
-    }, {} as Record<string, { Enabled: number; Disabled: number }>);
-
-    return Object.entries(typeStatusCounts).map(([name, statuses]) => ({ name, ...statuses }));
-  }, [controls]);
-
-  if (pieChartData.length === 0) return null;
+  const renderChart = (title: string, data: any[]) => {
+    if (data.length === 0) return null;
+    return (
+      <Grid item xs={12} md={6}>
+        <Typography variant="h6" align="center" gutterBottom>{title}</Typography>
+        <LineChart
+          dataset={data}
+          xAxis={[{ scaleType: 'band', dataKey: 'controlType' }]}
+          series={[
+            { dataKey: 'Enabled', label: 'Enabled', color: '#4caf50' },
+            { dataKey: 'Disabled', label: 'Disabled', color: '#f44336' },
+          ]}
+          width={500}
+          height={300}
+        />
+      </Grid>
+    );
+  };
 
   return (
     <Card sx={{ mb: 4 }}>
       <CardContent>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <Typography variant="h6" align="center">Preventative Controls Status</Typography>
-            <ResponsiveContainer width="100%" height={300} debounce={1}>
-              <PieChart>
-                <Pie
-                  data={pieChartData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={<CustomizedLabel />}
-                  isAnimationActive={false}
-                >
-                  {pieChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name as keyof typeof CHART_COLORS] || '#8884d8'} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Typography variant="h6" align="center">Controls by Type</Typography>
-            <ResponsiveContainer width="100%" height={300} debounce={1}>
-              <BarChart data={barChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="Enabled" stackId="a" fill="#4caf50" />
-                <Bar dataKey="Disabled" stackId="a" fill="#f44336" />
-              </BarChart>
-            </ResponsiveContainer>
-          </Grid>
+        <Grid container spacing={4}>
+          {renderChart('Preventative Controls', preventativeData)}
+          {renderChart('Detective Controls', detectiveData)}
         </Grid>
       </CardContent>
     </Card>
@@ -477,6 +450,8 @@ function DashboardCharts({ controls }: { controls: PreventativeControl[] }) {
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://gcp-dashboard-backend-is66mkdbpa-uc.a.run.app';
 
 export default function Home() {
+  const theme = useTheme();
+  const colorMode = useContext(ColorModeContext);
   const [preventativeControls, setPreventativeControls] = useState<PreventativeControl[]>([]);
   const [detectiveControls, setDetectiveControls] = useState<PreventativeControl[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -550,49 +525,51 @@ export default function Home() {
         throw new Error(data.detail || 'An error occurred on the backend.');
       }
 
-      const formattedOrgPolicies: PreventativeControl[] = (data.org_policies || []).map((p: OrgPolicy) => ({
-        name: p.name,
-        status: p.status,
-        controlType: 'Org Policy',
-        details: p.details,
-      }));
+      const preventativeControls: PreventativeControl[] = [];
+      const detectiveControls: PreventativeControl[] = [];
 
-      const formattedShaModules: PreventativeControl[] = (data.sha_modules || []).map((m: any) => ({
-        name: m.name,
-        status: m.status,
-        controlType: m.controlType,
-        details: m.details,
-      }));
+      // Preventative: Org Policies
+      (data.org_policies || []).forEach((p: OrgPolicy) => {
+        preventativeControls.push({
+          name: p.name,
+          status: p.status,
+          controlType: 'Org Policy',
+          details: p.details,
+        });
+      });
 
-      const formattedSecurityServices: PreventativeControl[] = (data.security_services || []).map((s: any) => ({
-        name: s.name,
-        status: s.status,
-        controlType: s.controlType,
-        details: s.details,
-      }));
-
-      const vpcScControl: PreventativeControl | null = data.vpc_sc && data.vpc_sc[0] ? {
-        name: data.vpc_sc[0].name,
-        status: data.vpc_sc[0].status,
-        controlType: 'VPC SC',
-        details: data.vpc_sc[0].details,
-      } : null;
-
-      const allPreventativeControls = [
-        ...formattedOrgPolicies,
-        ...(vpcScControl ? [vpcScControl] : []),
-      ];
-      setPreventativeControls(allPreventativeControls);
-
-      const allDetectiveControls = [...formattedShaModules, ...formattedSecurityServices];
-      setDetectiveControls(allDetectiveControls);
-      setDetectiveControls(allDetectiveControls);
-
-      let allPerimeterControls = [...formattedOrgPolicies];
-      if (vpcScControl) {
-        allPerimeterControls.push(vpcScControl);
+      // Preventative: VPC SC
+      if (data.vpc_sc && data.vpc_sc[0]) {
+        preventativeControls.push({
+          name: data.vpc_sc[0].name,
+          status: data.vpc_sc[0].status,
+          controlType: 'VPC Service Control',
+          details: data.vpc_sc[0].details,
+        });
       }
-      setPreventativeControls(allPerimeterControls);
+
+      // Detective: SHA Modules and Custom Modules
+      (data.sha_modules || []).forEach((m: any) => {
+        detectiveControls.push({
+          name: m.name,
+          status: m.status,
+          controlType: m.controlType, // 'SHA Module' or 'SHA Custom Module'
+          details: m.details,
+        });
+      });
+
+      // Detective: Security Services
+      (data.security_services || []).forEach((s: any) => {
+        detectiveControls.push({
+          name: s.name,
+          status: s.status,
+          controlType: s.controlType, // 'Security Service'
+          details: s.details,
+        });
+      });
+
+      setPreventativeControls(preventativeControls);
+      setDetectiveControls(detectiveControls);
 
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred');
@@ -625,7 +602,12 @@ export default function Home() {
   };
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
+    <Box sx={{ 
+      flexGrow: 1, 
+      minHeight: '100vh',
+      bgcolor: 'background.default',
+      color: 'text.primary'
+    }}>
       <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
@@ -639,23 +621,29 @@ export default function Home() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               sx={{
-                input: { color: 'white' },
-                label: { color: 'white' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: 'white' },
-                  '&:hover fieldset': { borderColor: 'white' },
+                '& .MuiInputBase-root': {
+                  color: 'inherit',
+                },
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'inherit',
+                },
+                '& .MuiInputLabel-root': {
+                  color: 'inherit',
                 },
               }}
             />
-            <Button variant="contained" onClick={handleViewClick} disabled={loading || isExporting}>
-              View
-            </Button>
-            <Button variant="contained" color="primary" onClick={handleLoadClick} disabled={loading || isExporting}>
-              {loading ? 'Loading...' : 'Load'}
-            </Button>
-            <Button variant="contained" onClick={handleExportPDF} disabled={isExporting}>
-              {isExporting ? 'Exporting...' : 'Export to PDF'}
-            </Button>
+            <IconButton onClick={handleViewClick} disabled={loading || isExporting} color="inherit">
+              <VisibilityIcon />
+            </IconButton>
+            <IconButton onClick={handleLoadClick} disabled={loading || isExporting} color="inherit">
+              <RefreshIcon />
+            </IconButton>
+            <IconButton onClick={handleExportPDF} disabled={isExporting} color="inherit">
+              <PictureAsPdfIcon />
+            </IconButton>
+            <IconButton sx={{ ml: 1 }} onClick={colorMode.toggleColorMode} color="inherit">
+              {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+            </IconButton>
           </Box>
         </Toolbar>
       </AppBar>
@@ -663,21 +651,30 @@ export default function Home() {
         {error && <Typography color="error">Failed to load data: {error}</Typography>}
         {loading && <Typography>Loading...</Typography>}
         {!loading && !error && (preventativeControls.length > 0 || detectiveControls.length > 0) && (
-          <DashboardCharts controls={[...preventativeControls, ...detectiveControls]} />
+          <DashboardCharts preventativeControls={preventativeControls} detectiveControls={detectiveControls} />
         )}
         {!loading && !error && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 2, 
+            ...(theme.palette.mode === 'dark' && { 
+              backgroundColor: theme.palette.background.paper, 
+              padding: 2, 
+              borderRadius: 1 
+            })
+          }}>
             <AccordionSection 
               title="Perimeter Controls" 
               incomplete={isPerimeterIncomplete}
               expanded={expandedPanel === 'perimeter'}
               onChange={handlePanelChange('perimeter')}
             >
-              <PreventativeControlsTable 
+              <PerimeterPreventativeControlsTable 
                 controls={preventativeControls} 
                 onStatusClick={handleStatusClick} 
               />
-              <DetectiveControlsTable 
+              <PerimeterDetectiveControlsTable 
                 controls={detectiveControls} 
                 onStatusClick={handleStatusClick} 
               />

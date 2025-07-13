@@ -36,7 +36,7 @@ def get_security_center_services(project_id: str):
                 service_id = service.name.split('/')[-1]
 
                 # Exclude Security Health Analytics as it's handled separately
-                if service_id.lower() == 'SECURITY_HEALTH_ANALYTICS':
+                if service_id.lower() == 'security_health_analytics':
                     continue
 
                 service_modules = []

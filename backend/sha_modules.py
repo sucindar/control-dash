@@ -39,7 +39,7 @@ def get_sha_custom_modules(project_id: str):
                 logging.info(f"Processing module: {response.display_name}")
                 modules_list.append({
                     "name": response.display_name,
-                    "status": response.enablement_state.name,
+                    "status": response.enablement_state.name.capitalize(),
                     "controlType": "SHA Custom Module",
                     "details": f"Module ID: {response.name.split('/')[-1]}"
                 })

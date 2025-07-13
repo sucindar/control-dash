@@ -4,10 +4,23 @@ import { useServerInsertedHTML } from 'next/navigation';
 import { CacheProvider } from '@emotion/react';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import theme from '@/theme';
-import { useState } from 'react';
+import getTheme from '@/theme';
+import { useState, useMemo } from 'react';
+import { ColorModeContext } from './ColorModeContext';
 
 export default function ThemeRegistry({ children }: { children: React.ReactNode }) {
+  const [mode, setMode] = useState<'light' | 'dark'>('light');
+
+  const colorMode = useMemo(
+    () => ({
+      toggleColorMode: () => {
+        setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+      },
+    }),
+    [],
+  );
+
+  const theme = useMemo(() => getTheme(mode), [mode]);
   const [{ cache, flush }] = useState(() => {
     const cache = createCache({ key: 'mui' });
     cache.compat = true;
@@ -49,11 +62,13 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
   });
 
   return (
-    <CacheProvider value={cache}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        {children}
-      </ThemeProvider>
-    </CacheProvider>
+    <ColorModeContext.Provider value={colorMode}>
+      <CacheProvider value={cache}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          {children}
+        </ThemeProvider>
+      </CacheProvider>
+    </ColorModeContext.Provider>
   );
 }
