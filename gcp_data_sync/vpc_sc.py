@@ -53,7 +53,8 @@ def get_vpc_sc_status(project_id: str):
                 "name": "VPC SC",
                 "status": "Disabled",
                 "controlType": "VPC Service Controls",
-                "details": "No Access Policy found for the organization."
+                "details": "No Access Policy found for the organization.",
+                "ControlObjective": "Prevent Data Exfiltration"
             }
 
         for policy in access_policies:
@@ -88,5 +89,6 @@ def get_vpc_sc_status(project_id: str):
         "name": "VPC SC",
         "status": status,
         "controlType": "VPC Service Controls",
-        "details": details
+        "details": details,
+        "ControlObjective": "Prevent Data Exfiltration"
     }

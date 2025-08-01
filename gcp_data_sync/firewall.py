@@ -28,7 +28,8 @@ def get_denied_internet_ingress_rules(project_id: str) -> list:
                     'name': rule.name,
                     'status': 'Enabled',
                     'controlType': 'Firewall',
-                    'details': 'Firewall rule denies all internet ingress traffic (0.0.0.0/0).'
+                    'details': 'Firewall rule denies all internet ingress traffic (0.0.0.0/0).',
+                    'ControlObjective': 'Restrict Ingress Traffic'
                 })
 
         if denied_rules:

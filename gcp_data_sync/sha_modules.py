@@ -41,7 +41,8 @@ def get_sha_custom_modules(project_id: str):
                     "name": response.display_name,
                     "status": response.enablement_state.name.capitalize(),
                     "controlType": "SHA Custom Module",
-                    "details": f"Module ID: {response.name.split('/')[-1]}"
+                    "details": f"Module ID: {response.name.split('/')[-1]}",
+                    "ControlObjective": "Detect Security Misconfigurations"
                 })
 
     except exceptions.PermissionDenied as e:
@@ -78,7 +79,7 @@ def get_sha_modules(project_id: str):
             logging.warning("API returned no Security Center services.")
             return None
         else:
-            logging.info(f"Found {responses} Security Center service(s). Filtering for SECURITY_HEALTH_ANALYTICS.")
+            #logging.info(f"Found {responses} Security Center service(s). Filtering for SECURITY_HEALTH_ANALYTICS.")
             for service in responses:
                 service_id = service.name.split('/')[-1]
                 if service_id == 'SECURITY_HEALTH_ANALYTICS':
@@ -88,7 +89,10 @@ def get_sha_modules(project_id: str):
                         for module_name, module_settings in service.modules.items():
                             service_modules.append({
                                 "name": module_name.replace('_', ' ').title(),
-                                "status": module_settings.effective_enablement_state.name.capitalize()
+                                "status": module_settings.effective_enablement_state.name.capitalize(),
+                                "controlType": "SHA Module",
+                                "details": f"Service ID: {service_id}",
+                                "ControlObjective": "Detect Security Misconfigurations"
                             })
 
                     sha_service_details = {
@@ -96,7 +100,8 @@ def get_sha_modules(project_id: str):
                         "status": service.effective_enablement_state.name.capitalize(),
                         "controlType": "SHA Module",
                         "details": f"Service ID: {service_id}",
-                        "modules": service_modules
+                        "modules": service_modules,
+                        "ControlObjective": "Detect Security Misconfigurations"
                     }
                     return sha_service_details
 

@@ -1,25 +1,39 @@
 import os
+import logging
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
+import os
+import logging
+from google.auth import default
 
-def generate_summary(dashboard_data: str) -> str:
-    """Generates a summary of the dashboard data using the Gemini model."""
+logging.basicConfig(level=logging.INFO)
+
+def generate_summary(text_to_summarize):
+    """Generates a summary of the provided text using Vertex AI."""
     project_id = os.getenv("DASHBOARD_GCP_PROJECT_ID")
     location = os.getenv("GCP_REGION", "us-central1")
 
-    vertexai.init(project=project_id, location=location)
+    if not project_id:
+        logging.error("DASHBOARD_GCP_PROJECT_ID not set.")
+        return "Error: Project ID for AI Platform not configured."
 
-    model = GenerativeModel("gemini-2.5-flash")
+    try:
+        # Initialize the Vertex AI client
+        vertexai.init(project=project_id, location=location)
 
-    prompt = f"""Provide a brief, high-level summary of the following GCP security dashboard data. 
-    Focus on the most critical findings and potential risks. The data is in JSON format.
-    Format the summary using Markdown.
+        # Load the pre-trained text summarization model
+        model = GenerativeModel("gemini-2.5-flash")
 
-    Data:
-    {dashboard_data}
+        # Define the prompt for the model
+        prompt = f"Summarize the following security data in a concise manner, highlighting key risks and vulnerabilities. The data is: {text_to_summarize}"
 
-    Summary:
-    """
+        # Get the prediction
+        response = model.generate_content(prompt)
+        
+        summary = response.text
+        logging.info("Successfully generated summary from Vertex AI.")
+        return summary
 
-    response = model.generate_content([Part.from_text(prompt)])
-    return response.text
+    except Exception as e:
+        logging.error(f"An error occurred while generating summary with Vertex AI: {e}")
+        return f"Error generating summary: {e}"

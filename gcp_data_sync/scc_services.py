@@ -29,9 +29,9 @@ def get_security_center_services(project_id: str):
         if not responses:
             logging.warning("API returned no Security Center services.")
         else:
-            logging.info(f"Found {len(responses)} Security Center service(s).")
+            #logging.info(f"Found {len(responses)} Security Center service(s).")
             for service in responses:
-                logging.debug(f"Full service object: {service}")
+                #logging.debug(f"Full service object: {service}")
                 # The service name is a long path, let's get the last part.
                 service_id = service.name.split('/')[-1]
 
@@ -52,7 +52,8 @@ def get_security_center_services(project_id: str):
                     "status": service.effective_enablement_state.name.capitalize(),
                     "controlType": "Security Service",
                     "details": f"Service ID: {service_id}",
-                    "modules": service_modules
+                    "modules": service_modules,
+                    "ControlObjective": "Detect Security Misconfigurations"
                 })
 
     except exceptions.PermissionDenied as e:

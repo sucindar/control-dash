@@ -61,7 +61,7 @@ def _fetch_single_policy(org_policy_client, project_id, constraint):
     """Fetches a single effective organization policy and determines its status."""
     policy_name = f"projects/{project_id}/policies/{constraint}"
     try:
-        logging.info(f"Fetching effective policy for: {constraint}")
+        #logging.info(f"Fetching effective policy for: {constraint}")
         policy = org_policy_client.get_effective_policy(name=policy_name)
         status = "Disabled"
 
@@ -70,10 +70,22 @@ def _fetch_single_policy(org_policy_client, project_id, constraint):
             if any(rule.enforce for rule in policy.spec.rules):
                 status = "Enabled"
                 
-        return {"name": constraint, "status": status, "details": str(policy)}
+        return {
+            "name": constraint, 
+            "status": status, 
+            "controlType": "Org Policy",
+            "details": str(policy),
+            "ControlObjective": "Enforce Organizational Standards"
+        }
     except Exception as e:
         logging.error(f"Failed to fetch effective policy for {constraint}: {e}")
-        return {"name": constraint, "status": "Error", "details": str(e)}
+        return {
+            "name": constraint, 
+            "status": "Error", 
+            "controlType": "Org Policy",
+            "details": str(e),
+            "ControlObjective": "Enforce Organizational Standards"
+        }
 
 async def get_all_effective_policies(project_id: str):
     """

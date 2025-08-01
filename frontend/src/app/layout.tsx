@@ -3,7 +3,7 @@ import ThemeRegistry from './ThemeRegistry';
 
 export const metadata: Metadata = {
   title: 'GCP Security Dashboard',
-  description: 'A dashboard for visualizing GCP security controls.',
+  description: 'A dashboard to visualize GCP security posture.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
