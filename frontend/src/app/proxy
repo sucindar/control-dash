@@ -1,0 +1,32 @@
+const express = require('express');
+const path = require('path');
+const { GoogleAuth } = require('google-auth-library');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Proxy route
+app.get('/proxy-backend', async (req, res) => {
+  try {
+    const auth = new GoogleAuth();
+    const client = await auth.getIdTokenClient('https://your-backend-url.a.run.app');
+
+    const response = await client.request({ url: 'https://your-backend-url.a.run.app/data' });
+
+    res.json(response.data);
+  } catch (err) {
+    console.error('Backend proxy error:', err);
+    res.status(500).send('Proxy failed');
+  }
+});
+
+// Serve static React app (from /public or /build)
+app.use(express.static(path.join(__dirname, 'public'))); // or wherever your build ends up
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html')); // adjust path as needed
+});
+
+app.listen(PORT, () => {
+  console.log(`App running on port ${PORT}`);
+});
