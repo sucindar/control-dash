@@ -48,3 +48,8 @@ export default function Page() {
     </div>
   );
 }
+
+gcloud run services describe frontend-service \
+  --project=your-project \
+  --region=your-region \
+  --format='value(spec.template.spec.serviceAccountName)'
