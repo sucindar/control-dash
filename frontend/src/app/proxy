@@ -1,20 +1,21 @@
-// src/pages/api/proxy-backend.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleAuth } from 'google-auth-library';
+
+const backendUrl = process.env.BACKEND_URL; // ✅ Loaded from env (not exposed to browser)
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const auth = new GoogleAuth();
-    const client = await auth.getIdTokenClient('https://your-backend-service-xyz.a.run.app');
+    const client = await auth.getIdTokenClient(backendUrl!); // add ! if you're sure it's set
 
     const response = await client.request({
-      url: 'https://your-backend-service-xyz.a.run.app/your-endpoint',
-      method: 'GET', // or POST, etc. based on backend
+      url: `${backendUrl}/refresh`,
+      method: 'POST',
     });
 
-    res.status(200).json(response.data);
+    res.status(response.status).json(response.data);
   } catch (error) {
-    console.error('Proxy error:', error);
-    res.status(500).json({ error: 'Failed to reach backend service' });
+    console.error('Error calling backend:', error);
+    res.status(500).json({ error: 'Failed to reach backend' });
   }
 }
