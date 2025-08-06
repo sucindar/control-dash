@@ -1,0 +1,50 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+export default function Page() {
+  const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Hardcode your backend URL here
+  const TEST_BACKEND_URL = 'https://gcp-dashboard-backend-is66mkdbpa-uc.a.run.app/api/dashboard/test-project';
+
+  useEffect(() => {
+    console.log('✅ useEffect triggered');
+
+    const fetchData = async () => {
+      try {
+        console.log('➡️ Fetching from backend...');
+        const response = await fetch(TEST_BACKEND_URL);
+        const result = await response.json();
+        console.log('✅ Fetched data:', result);
+        setData(result);
+      } catch (err: any) {
+        console.error('❌ Fetch error:', err.message);
+        setError(err.message);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  return (
+    <div style={{ padding: '2rem' }}>
+      <h1>Test Fetch</h1>
+
+      {error && (
+        <p style={{ color: 'red' }}>
+          ❌ Error: {error}
+        </p>
+      )}
+
+      {data ? (
+        <pre style={{ backgroundColor: '#f0f0f0', padding: '1rem' }}>
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      ) : (
+        !error && <p>Loading...</p>
+      )}
+    </div>
+  );
+}
