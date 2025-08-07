@@ -264,7 +264,17 @@ function DetectiveControlsPlaceholder() {
 // --- Main Page Component ---
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://gcp-dashboard-backend-is66mkdbpa-uc.a.run.app';
 
-export default function Home() {
+import React, { Suspense } from 'react';
+
+const DashboardPage = () => (
+  <Suspense fallback={<div>Loading dashboard...</div>}>
+    <Home />
+  </Suspense>
+);
+
+export default DashboardPage;
+
+function Home() {
   const searchParams = useSearchParams();
   const [allControls, setAllControls] = useState<Control[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
