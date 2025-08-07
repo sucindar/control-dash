@@ -18,7 +18,7 @@ import Brightness7Icon from '@mui/icons-material/Brightness7';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
-// --- Data Structures ---
+// --- Data Structures  ---
 interface PreventativeControl {
   name: string;
   status: string;
