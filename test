@@ -1,0 +1,55 @@
+apiVersion: run.cnrm.cloud.google.com/v1beta1
+kind: RunJob
+metadata:
+  name: controls-dash-sync-job-{{ environment }}
+  namespace: {{ config['projectId'] }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ config['projectId'] }}
+spec:
+  location: {{ region }}
+  projectRef:
+    external: projects/{{ config['projectId'] }}
+
+  # taskCount and parallelism omitted => both default to 1
+  template:
+    # Optional execution controls (keep or tweak as needed)
+    taskTimeoutSeconds: 3600
+    maxRetries: 1
+
+    template:
+      spec:
+        serviceAccountRef:
+          # runtime identity for the job
+          name: control-dash-sa-{{ config['environment'] }}
+          namespace: {{ config['projectId'] }}
+
+        # Optional: VPC egress like your service used
+        vpcAccess:
+          connector: {{ context['environment']['EnterpriseVpc']['VpcConnector'][region]['external'] }}
+          egress: ALL_TRAFFIC
+
+        containers:
+        - image: asia-southeast1-docker.pkg.dev/{{ config['projectId'] }}/dbs-evol-core-controls-dash-sync-dev-repo-resources/controls-dash-sync:latest
+          env:
+          - name: PROJECT_ID
+            value: "{{ config['projectId'] }}"
+          - name: DASHBOARD_GCP_PROJECT_ID
+            value: "{{ config['projectId'] }}"
+          - name: GCP_REGION
+            value: "{{ config['region'] }}"
+          - name: ORGANIZATION_ID
+            value: "{{ config['orgId'] }}"
+          - name: FIRESTORE_DATABASE
+            value: "{{ config['firestoreDatabase'] }}"
+          - name: LOCATION
+            value: "{{ config['region'] }}"
+          - name: LOGGING_LEVEL
+            value: "INFO"
+          - name: TIME_ZONE
+            value: "Asia/Singapore"
+          - name: ANALYSISPM_ENABLED
+            value: "true"
+          - name: TYPE
+            value: "FULL"
+          - name: FOLDER_SYNC
+            value: "6464533999424"
