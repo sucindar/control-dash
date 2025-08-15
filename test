@@ -53,3 +53,25 @@ spec:
             value: "FULL"
           - name: FOLDER_SYNC
             value: "6464533999424"
+
+
+apiVersion: cloudscheduler.cnrm.cloud.google.com/v1beta1
+kind: CloudSchedulerJob
+metadata:
+  name: controls-dash-sync-job-dev-scheduler
+  namespace: dbs-mod-evol-dev-w05o3        # KCC namespace = target project
+spec:
+  schedule: "*/30 * * * *"                  # every 30 minutes
+  timeZone: "Asia/Singapore"
+  retryConfig:
+    retryCount: 3
+    maxRetryDuration: "60s"
+  httpTarget:
+    httpMethod: POST
+    uri: "https://run.googleapis.com/v2/projects/dbs-mod-evol-dev-w05o3/locations/asia-southeast1/jobs/controls-dash-sync-job-dev:run"
+    headers:
+      Content-Type: "application/json"
+    body: "e30="                             # {} base64
+    oidcToken:
+      serviceAccountEmail: scheduler@dbs-mod-evol-dev-w05o3.iam.gserviceaccount.com
+      audience: "https://run.googleapis.com/"
