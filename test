@@ -75,3 +75,56 @@ spec:
     oidcToken:
       serviceAccountEmail: scheduler@dbs-mod-evol-dev-w05o3.iam.gserviceaccount.com
       audience: "https://run.googleapis.com/"
+
+
+
+apiVersion: cloudscheduler.cnrm.cloud.google.com/v1beta1
+kind: CloudSchedulerJob
+metadata:
+  name: crj-sample-schedule
+  annotations:
+    cnrm.cloud.google.com/project-id: PROJECT_ID
+spec:
+  description: "Run Cloud Run Job on a schedule"
+  schedule: "*/30 * * * *"       # every 30 minutes
+  timeZone: "Asia/Singapore"
+  location: REGION
+  httpTarget:
+    httpMethod: "POST"
+    uri: "https://REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/PROJECT_ID/jobs/crj-sample:run"
+    oidcToken:
+      serviceAccountEmail: "crj-scheduler-caller@PROJECT_ID.iam.gserviceaccount.com"
+    headers:
+      Content-Type: "application/json"
+    # Optional: pass run-time overrides (must be base64-encoded JSON). Omit 'body' if not needed.
+    # body: "BASE64_OF_{\"overrides\":{\"containerOverrides\":{\"env\":[{\"name\":\"FOO\",\"value\":\"BAR\"}]}}}"
+
+apiVersion: run.cnrm.cloud.google.com/v1beta1
+kind: RunJob
+metadata:
+  name: crj-sample
+  annotations:
+    cnrm.cloud.google.com/project-id: PROJECT_ID
+  namespace: KCC_NAMESPACE   # if you use namespaced mode
+spec:
+  location: REGION
+  template:
+    template:
+      metadata:
+        annotations:
+          run.googleapis.com/vpc-access-connector: projects/PROJECT_ID/locations/REGION/connectors/VPC_CONNECTOR_NAME
+          run.googleapis.com/vpc-access-egress: all-traffic
+      spec:
+        taskCount: 1
+        template:
+          spec:
+            serviceAccountName: JOB_RUNTIME_SA@PROJECT_ID.iam.gserviceaccount.com
+            containers:
+              - image: REGION-docker.pkg.dev/PROJECT_ID/REPO/IMAGE:TAG
+                args: ["--do-the-thing"]
+                env:
+                  - name: PROJECT_ID
+                    value: "PROJECT_ID"
+                  - name: REGION
+                    value: "REGION"
+
