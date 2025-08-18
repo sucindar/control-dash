@@ -128,3 +128,35 @@ spec:
                   - name: REGION
                     value: "REGION"
 
+from google.cloud import datastore
+
+def to_entity_unindexed(obj):
+    if isinstance(obj, dict):
+        e = datastore.Entity()
+        for k, v in obj.items():
+            e[k] = to_entity_unindexed(v)
+            # if this field is (or contains) long text, exclude it
+            if isinstance(v, (str, bytes)) or (
+                isinstance(v, list) and any(isinstance(x, (str, bytes)) for x in v)
+            ):
+                e.exclude_from_indexes.add(k)
+        return e
+    elif isinstance(obj, list):
+        return [to_entity_unindexed(x) for x in obj]
+    else:
+        return obj
+
+def save_dashboard_data(project_id: str, data: dict) -> bool:
+    try:
+        client = get_datastore_client()
+        key = client.key(DATASTORE_KIND, project_id)
+
+        payload = to_entity_unindexed(data)  # recursively unindex strings
+        entity = datastore.Entity(key=key)
+        entity.update(payload)
+
+        client.put(entity)
+        return True
+    except Exception as e:
+        logging.error("Failed to save data for %s: %s", project_id, e)
+        return False
